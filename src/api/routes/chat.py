@@ -362,6 +362,7 @@ async def get_chat_history(
             limit=limit,
             include_incomplete=include_incomplete
         )
+        print(conversations)
         
         # Convertir a objetos ChatHistoryItem
         conversation_items = [

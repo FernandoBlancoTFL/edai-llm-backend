@@ -52,6 +52,7 @@ class ChatHistoryItem(BaseModel):
     query: str
     llm_response: Optional[str] = None
     success: bool
+    dataset: Optional[str] = None
     response_metadata: Optional[dict] = None
 
     class Config:
@@ -62,6 +63,7 @@ class ChatHistoryItem(BaseModel):
                 "query": "genera un histograma de la columna edad",
                 "llm_response": "Se generó un histograma que muestra...",
                 "success": True,
+                "dataset": "nombre_dataset o None",
                 "response_metadata": {
                     "type": "plot",
                     "data": {
