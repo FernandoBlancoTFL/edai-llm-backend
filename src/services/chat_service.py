@@ -35,7 +35,8 @@ def get_conversation_history(
         checkpoints_list = list(postgres_saver.list(config, limit=limit * 3))
         
         conversations = []
-        seen_queries = set()  # Para evitar duplicados de la misma query
+
+        latest_checkpoint_by_query = {}
         
         for checkpoint_tuple in checkpoints_list:
             checkpoint_data = checkpoint_tuple[1]
@@ -80,27 +81,36 @@ def get_conversation_history(
                 # Fallback: usar timestamp del checkpoint
                 query_key = f"{query}_{checkpoint_data.get('ts', '')[:19]}"
 
-            if query_key in seen_queries:
-                continue
-            seen_queries.add(query_key)
-            
-            # Construir objeto de conversación
-            # IMPORTANTE: Usar query desde response_metadata para consistencia
+            latest_checkpoint_by_query[query_key] = checkpoint_data
+
+        conversations = []
+
+        for query_key, checkpoint_data in latest_checkpoint_by_query.items():
+            channel_values = checkpoint_data.get('channel_values') or checkpoint_data.get('values', {})
+
             response_metadata = channel_values.get('response_metadata', {})
+            query = response_metadata.get('query') or channel_values.get('query')
+            strategy = response_metadata.get("strategy_used")
+            is_success = channel_values.get('success', False)
+
+            dataset = None
+            if strategy in ["sql", "dataframe"]:
+                dataset = (
+                    channel_values.get("selected_dataset") or
+                    response_metadata.get("selected_dataset")
+                )
+
             conversation = {
                 "checkpoint_id": checkpoint_data.get('id'),
                 "timestamp": checkpoint_data.get('ts'),
-                "query": response_metadata.get('query') or query,  # Priorizar metadata
+                "query": query,
                 "llm_response": channel_values.get('llm_response'),
                 "success": is_success,
-                "response_metadata": response_metadata
+                "response_metadata": response_metadata,
+                "dataset": dataset
             }
-            
+
             conversations.append(conversation)
-            
-            # Límite alcanzado
-            if len(conversations) >= limit:
-                break
         
         return conversations
     

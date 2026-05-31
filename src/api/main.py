@@ -24,7 +24,22 @@ outputs_dir = Path("src/outputs")
 outputs_dir.mkdir(parents=True, exist_ok=True)
 
 # Montar carpeta outputs
-app.mount("/outputs", StaticFiles(directory="src/outputs"), name="outputs")
+# app.mount("/outputs", StaticFiles(directory="src/outputs"), name="outputs")
+
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+
+class CORSMiddlewareStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
+app.mount(
+    "/outputs",
+    CORSMiddlewareStaticFiles(directory="src/outputs"),
+    name="outputs",
+)
 
 # Configurar CORS para permitir requests desde frontend
 app.add_middleware(
