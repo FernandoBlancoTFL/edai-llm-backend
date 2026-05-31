@@ -16,6 +16,12 @@ from dataset_manager import (
     get_dataset_table_info_by_name
 )
 
+EXCLUDED_COLUMNS = {
+    "id",
+    "created_at",
+    "semantic_description"
+}
+
 class DocumentService:
     """Servicio para gestión de documentos/datasets"""
 
@@ -407,6 +413,18 @@ class DocumentService:
                 # Obtener información de la tabla
                 table_info = get_dataset_table_info_by_name(table_name, conn)
 
+                excluded_columns = {
+                    "id",
+                    "created_at",
+                    "semantic_description"
+                }
+
+                visible_columns = [
+                    col
+                    for col in table_info["columns"]
+                    if col not in EXCLUDED_COLUMNS
+                ]
+
                 if table_info:
                     # Intentar obtener fecha de creación
                     try:
@@ -430,13 +448,159 @@ class DocumentService:
                         "filename": filename,
                         "table_name": table_name,
                         "row_count": table_info["row_count"],
-                        "column_count": len(table_info["columns"]),
+                        "column_count": len(visible_columns),
                         "created_at": created_at
                     })
 
             return documents
 
         finally:
+            if should_close:
+                conn.close()
+
+    def get_document_preview(self, file_id: str):
+        """
+        Obtiene una vista previa detallada de un documento.
+        """
+
+        conn = data_connection
+
+        if conn is None:
+            db_config = load_db_config()
+
+            connection_string = (
+                f"postgresql://{db_config['user']}:"
+                f"{db_config['password']}@"
+                f"{db_config['host']}:"
+                f"{db_config['port']}/"
+                f"{db_config['dbname']}"
+            )
+
+            conn = psycopg.connect(connection_string)
+
+            should_close = True
+
+        else:
+            should_close = False
+
+        try:
+
+            stored_tables = list_stored_tables(conn)
+
+            system_tables = [
+                "document_registry",
+                "checkpoints",
+                "checkpoint_writes"
+            ]
+
+            target_table = None
+
+            for table_name in stored_tables:
+
+                if table_name in system_tables:
+                    continue
+
+                if table_name.endswith(file_id):
+                    target_table = table_name
+                    break
+
+            if target_table is None:
+                return None
+
+            table_info = get_dataset_table_info_by_name(
+                target_table,
+                conn
+            )
+
+            headers = [
+                col
+                for col in table_info["columns"]
+                if col not in EXCLUDED_COLUMNS
+            ]
+
+            # Obtener fecha de creación
+            try:
+
+                with conn.cursor() as cursor:
+
+                    cursor.execute(
+                        f"""
+                        SELECT created_at
+                        FROM public."{target_table}"
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        """
+                    )
+
+                    result = cursor.fetchone()
+
+                    created_at = (
+                        result[0].isoformat()
+                        if result and result[0]
+                        else datetime.now().isoformat()
+                    )
+
+            except Exception:
+
+                created_at = datetime.now().isoformat()
+
+            # Obtener primeras 3 filas
+            with conn.cursor() as cursor:
+
+                cursor.execute(
+                    f'''
+                    SELECT *
+                    FROM public."{target_table}"
+                    LIMIT 3
+                    '''
+                )
+
+                rows = cursor.fetchall()
+
+                column_names = [
+                    desc[0]
+                    for desc in cursor.description
+                ]
+
+            sample_rows = []
+
+            for row in rows:
+
+                row_data = {}
+
+                for idx, value in enumerate(row):
+
+                    column_name = column_names[idx]
+
+                    if column_name in EXCLUDED_COLUMNS:
+                        continue
+                    if hasattr(value, "isoformat"):
+                        value = value.isoformat()
+
+                    row_data[column_name] = value
+
+                sample_rows.append(row_data)
+
+            filename = (
+                target_table.replace(
+                    f"_{file_id}",
+                    ""
+                )
+                + ".xlsx"
+            )
+
+            return {
+                "file_id": file_id,
+                "filename": filename,
+                "created_at": created_at,
+                "row_count": table_info["row_count"],
+                "column_count": len(headers),
+                "headers": headers,
+                "sample_rows": sample_rows
+            }
+
+        finally:
+
             if should_close:
                 conn.close()
 

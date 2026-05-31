@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from api.schemas.document_preview import DocumentPreview
 from typing import List
 import sys
 import os
@@ -74,6 +75,41 @@ async def list_documents():
         raise HTTPException(
             status_code=500,
             detail=f"Error al listar documentos: {str(e)}"
+        )
+
+@router.get("/{file_id}/preview", response_model=DocumentPreview)
+async def get_document_preview(file_id: str):
+    """
+    Obtiene información detallada de un documento.
+
+    Incluye:
+    - Nombre
+    - Fecha de creación
+    - Cantidad de filas
+    - Cantidad de columnas
+    - Encabezados
+    - Primeras 3 filas
+    """
+    try:
+        preview = document_service.get_document_preview(file_id)
+
+        if preview is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Documento no encontrado"
+            )
+
+        return preview
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print(f"❌ Error obteniendo preview: {e}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error obteniendo preview: {str(e)}"
         )
 
 @router.delete("/{file_id}", response_model=DocumentDeleteResponse)
