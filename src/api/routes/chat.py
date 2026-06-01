@@ -44,7 +44,7 @@ async def chat_endpoint(request: ChatRequest):
     - Mantiene historial conversacional automáticamente
     - Retorna respuesta interpretativa con metadatos de ejecución
     """
-    
+    thread_id = request.chat_id or "chat_1"
     try:
         # Obtener el grafo compilado
         graph = get_graph()
@@ -78,7 +78,7 @@ async def chat_endpoint(request: ChatRequest):
             "strategy_reason": "",
             "sql_error": None,
             "session_metadata": {
-                "thread_id": SINGLE_USER_THREAD_ID,
+                "thread_id": thread_id,
                 "session_start": datetime.now().isoformat(),
                 "user_id": SINGLE_USER_ID
             }
@@ -86,7 +86,9 @@ async def chat_endpoint(request: ChatRequest):
         
         # Configurar thread único para memoria persistente
         config = {
-            "configurable": {"thread_id": SINGLE_USER_THREAD_ID}
+            "configurable": {
+                "thread_id": thread_id
+            }
         } if postgres_saver else {}
         
         # Invocar el grafo (ejecuta todo el flujo de análisis)
