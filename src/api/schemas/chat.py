@@ -4,11 +4,13 @@ from typing import Optional, Any, List
 class ChatRequest(BaseModel):
     """Esquema para la petición del endpoint /chat"""
     message: str
-    
+    chat_id: str = "chat_1"
+
     class Config:
         json_schema_extra = {
             "example": {
-                "message": " ¿Cuántas filas tiene el dataset de cocodrilos?"
+                "message": "¿Cuántas filas tiene el dataset de cocodrilos?",
+                "chat_id": "chat_1"
             }
         }
 
