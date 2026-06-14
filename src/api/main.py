@@ -8,8 +8,14 @@ import os
 # Agregar src al path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from api.routes import chat, documents
-from database import create_database_if_not_exists, test_target_database_connection, setup_data_connection, create_document_registry_table
+from api.routes import chat, documents, chats
+from database import (
+    create_database_if_not_exists,
+    test_target_database_connection,
+    setup_data_connection,
+    create_document_registry_table,
+    create_chats_table
+)
 from checkpoints import setup_postgres_saver
 
 # Crear aplicación FastAPI
@@ -52,6 +58,11 @@ app.add_middleware(
 
 # Incluir routers
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
+app.include_router(
+    chats.router,
+    prefix="/api/chats",
+    tags=["Chats"]
+)
 
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 
@@ -79,6 +90,9 @@ async def startup_event():
     # Crear tabla de registro de documentos
     print("📝 Creando tabla de registro de documentos...")
     create_document_registry_table()
+
+    print("💬 Creando tabla de chats...")
+    create_chats_table()
     
     # ELIMINADO: Ya no se inicializan datasets automáticamente
     print("📁 Sistema configurado para trabajar solo con documentos subidos vía API")

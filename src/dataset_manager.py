@@ -609,7 +609,6 @@ def clean_mixed_date_columns(df: pd.DataFrame) -> pd.DataFrame:
     
     return df_copy
 
-
 def _convertir_fecha_a_decimal(valor):
     """
     Convierte fechas/datetime a formato decimal día.mes
