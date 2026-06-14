@@ -9,6 +9,20 @@ load_dotenv()
 # Variables globales
 data_connection = None
 
+def get_connection():
+
+    db_config = load_db_config()
+
+    connection_string = (
+        f"postgresql://{db_config['user']}:"
+        f"{db_config['password']}@"
+        f"{db_config['host']}:"
+        f"{db_config['port']}/"
+        f"{db_config['dbname']}"
+    )
+
+    return psycopg.connect(connection_string)
+
 def load_db_config():
     """Carga la configuración de la base de datos desde variables de entorno"""
     load_dotenv()
@@ -296,3 +310,61 @@ def create_document_registry_table():
     finally:
         if should_close and conn:
             conn.close()
+
+def create_chats_table():
+    """
+    Crea la tabla de chats.
+    """
+    global data_connection
+
+    conn = data_connection
+    should_close = False
+
+    if conn is None:
+        db_config = load_db_config()
+
+        connection_string = (
+            f"postgresql://{db_config['user']}:"
+            f"{db_config['password']}@"
+            f"{db_config['host']}:"
+            f"{db_config['port']}/"
+            f"{db_config['dbname']}"
+        )
+
+        conn = psycopg.connect(connection_string)
+        should_close = True
+
+    try:
+        with conn.cursor() as cursor:
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chats (
+                    id UUID PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                    is_deleted BOOLEAN NOT NULL DEFAULT FALSE
+                )
+            """)
+
+            conn.commit()
+
+            print("✅ Tabla chats creada/verificada")
+
+            return True
+
+    except Exception as e:
+        print(f"❌ Error creando tabla chats: {e}")
+
+        if conn:
+            conn.rollback()
+
+        return False
+
+    finally:
+        if should_close and conn:
+            conn.close()
+
+
+
+

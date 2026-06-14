@@ -44,7 +44,7 @@ async def chat_endpoint(request: ChatRequest):
     - Mantiene historial conversacional automáticamente
     - Retorna respuesta interpretativa con metadatos de ejecución
     """
-    thread_id = request.chat_id or "chat_1"
+    thread_id = request.chat_id
     try:
         # Obtener el grafo compilado
         graph = get_graph()
