@@ -491,6 +491,15 @@ def node_python_executor(state: AgentState):
     
     # Ejecutar código
     execution_result = run_python_with_df(python_code)
+
+    # Guardo en el state el gráfico generado
+
+    if execution_result.get("generated_plot"):
+        state["generated_plot"] = (
+            execution_result[
+                "generated_plot"
+            ]
+        )
     
     # Crear registro de ejecución
     execution_record = {
@@ -515,6 +524,12 @@ def node_python_executor(state: AgentState):
     
     state["history"].append(f"Ejecutar Python → {'Éxito' if execution_result['success'] else 'Error: ' + str(execution_result['error'])}")
     
+    # Print de prueba para comprobar el url del cloudinary
+    print(
+        "GENERATED PLOT:",
+        state.get("generated_plot")
+    )
+
     return state
 
 def node_validation(state: AgentState):

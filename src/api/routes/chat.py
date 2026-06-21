@@ -185,8 +185,10 @@ def find_recently_created_plot(time_window_seconds: int = 10) -> str:
 def prepare_response_metadata(state: AgentState) -> dict:
     """
     Prepara metadata completa de la respuesta para guardar en checkpoint.
-    Detecta tipo de respuesta y extrae datos relevantes.
+    Usa state["generated_plot"] para detectar gráficos en lugar de buscar
+    archivos recientes en outputs/.
     """
+
     metadata = {
         "timestamp": datetime.now().isoformat(),
         "query": state.get("query"),
@@ -194,48 +196,88 @@ def prepare_response_metadata(state: AgentState) -> dict:
         "strategy_used": state.get("data_strategy", "unknown"),
         "iterations": state.get("iteration_count", 0)
     }
-    
+
     # Detectar tipo de respuesta
     if state.get("success", False):
-        # Buscar si hay gráfico
-        plot_file = find_recently_created_plot()
-        
-        if plot_file:
-            plot_metadata = get_plot_metadata(plot_file)
-            
+
+        # ==========================
+        # GRÁFICO
+        # ==========================
+        plot_info = state.get("generated_plot")
+
+        if plot_info:
+
             metadata["type"] = "plot"
+
             metadata["data"] = {
-                "url": f"{BASE_URL}/outputs/{plot_file}",
-                "filename": plot_file,
-                "created_at": plot_metadata.get("created_at"),
-                "size_bytes": plot_metadata.get("size_bytes"),
-                "exists": plot_metadata.get("exists")
+                "url": (
+                    plot_info.get("cloudinary_url")
+                    or plot_info.get("local_url")
+                ),
+
+                "cloudinary_url":
+                    plot_info.get("cloudinary_url"),
+
+                "local_url":
+                    plot_info.get("local_url"),
+
+                "filename":
+                    plot_info.get("filename"),
+
+                "local_path":
+                    plot_info.get("local_path"),
+
+                "cloudinary_public_id":
+                    plot_info.get("cloudinary_public_id")
             }
-        
-        # Verificar si hay resultados SQL
+
+        # ==========================
+        # TABLA
+        # ==========================
         elif state.get("sql_results"):
+
             sql_results = state["sql_results"]
-            if isinstance(sql_results, dict) and sql_results.get("data"):
+
+            if (
+                isinstance(sql_results, dict)
+                and sql_results.get("data")
+            ):
                 metadata["type"] = "table"
+
                 metadata["data"] = {
                     "rows": sql_results.get("data", [])[:50],
                     "columns": sql_results.get("columns", []),
-                    "total_rows": len(sql_results.get("data", []))
+                    "total_rows": len(
+                        sql_results.get("data", [])
+                    )
                 }
-        
-        # Respuesta de texto
+
+        # ==========================
+        # TEXTO
+        # ==========================
         else:
+
             metadata["type"] = "text"
             metadata["data"] = None
-    
+
     else:
-        # Error
+
+        # ==========================
+        # ERROR
+        # ==========================
         metadata["type"] = "error"
+
         metadata["data"] = {
-            "error_message": state.get("final_error", "Error desconocido"),
-            "attempts": state.get("iteration_count", 0)
+            "error_message": state.get(
+                "final_error",
+                "Error desconocido"
+            ),
+            "attempts": state.get(
+                "iteration_count",
+                0
+            )
         }
-    
+
     return metadata
 
 def extract_response_data(state: dict, response_type: str):
