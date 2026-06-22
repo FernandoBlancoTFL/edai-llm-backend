@@ -490,7 +490,7 @@ def node_python_executor(state: AgentState):
     print(f"\n🔍 Código generado:\n{python_code}")
     
     # Ejecutar código
-    execution_result = run_python_with_df(python_code)
+    execution_result = run_python_with_df(python_code, state)
 
     # Guardo en el state el gráfico generado
 

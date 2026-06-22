@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
+from database import get_connection
 from state import AgentState
 from utils import extract_plot_filename_from_result, extract_text_data, get_plot_metadata
 from config import BASE_URL
@@ -14,13 +15,15 @@ from config import SINGLE_USER_THREAD_ID, SINGLE_USER_ID
 from graph import create_graph_with_sql
 from checkpoints import get_postgres_saver
 from utils import clean_state_for_serialization
-
 from src.services.chat_service import (
     get_conversation_history
 )
 from src.api.schemas.chat import (
     ChatHistoryResponse,
     ChatHistoryItem
+)
+from src.services.chat_management_service import (
+    is_chat_active
 )
 
 router = APIRouter()
@@ -45,6 +48,13 @@ async def chat_endpoint(request: ChatRequest):
     - Retorna respuesta interpretativa con metadatos de ejecución
     """
     thread_id = request.chat_id
+
+    if not is_chat_active(thread_id):
+        raise HTTPException(
+            status_code=404,
+            detail="El chat no existe o fue eliminado"
+        )
+    
     try:
         # Obtener el grafo compilado
         graph = get_graph()
@@ -401,23 +411,40 @@ async def get_chat_history(
     incluyendo solo aquellas que tienen respuesta completa del LLM.
     """
     try:
+
+        if not thread_id or not thread_id.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="thread_id es requerido"
+            )
+
+        # NUEVO: verificar que el chat siga activo
+        if not is_chat_active(thread_id):
+            raise HTTPException(
+                status_code=404,
+                detail="El chat no existe o fue eliminado"
+            )
+
         conversations = get_conversation_history(
             thread_id=thread_id,
             limit=limit,
             include_incomplete=include_incomplete
         )
-        
-        # Convertir a objetos ChatHistoryItem
+
         conversation_items = [
-            ChatHistoryItem(**conv) for conv in conversations
+            ChatHistoryItem(**conv)
+            for conv in conversations
         ]
-        
+
         return ChatHistoryResponse(
             thread_id=thread_id,
             total=len(conversation_items),
             conversations=conversation_items
         )
-    
+
+    except HTTPException:
+        raise
+
     except Exception as e:
         raise HTTPException(
             status_code=500,

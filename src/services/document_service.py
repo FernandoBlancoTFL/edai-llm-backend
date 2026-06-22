@@ -399,7 +399,7 @@ class DocumentService:
             documents = []
 
             # Tablas del sistema que NO son documentos de usuario
-            system_tables = ['document_registry', 'checkpoints', 'checkpoint_writes']
+            system_tables = ['document_registry', 'checkpoints', 'checkpoint_writes', 'chats']
 
             for table_name in stored_tables:
                 # Saltar tablas del sistema

@@ -9,6 +9,7 @@ from langchain_core.tools import Tool
 from langchain_experimental.tools import PythonREPLTool
 from config import BASE_URL
 import dataset_manager
+from state import AgentState
 from utils import generate_unique_plot_filename
 
 python_repl = PythonREPLTool()
@@ -113,13 +114,17 @@ output_path
     
     return code
 
-def run_python_with_df(code: str, error_context: Optional[str] = None):
+def run_python_with_df(code: str, state: AgentState, error_context: Optional[str] = None):
     """
     Ejecuta código Python con acceso al DataFrame `df` ya cargado.
     CAPTURA STDOUT para obtener resultados de print().
     """
     from io import StringIO
     import sys
+
+    meta = state["session_metadata"]
+    user_id = meta["user_id"]
+    thread_id = meta["thread_id"]
     
     # Verificar que hay un dataset cargado
     if dataset_manager.df is None or not dataset_manager.dataset_loaded:
@@ -212,6 +217,8 @@ def run_python_with_df(code: str, error_context: Optional[str] = None):
 
         plot_path = plot_info["plot_path"]
 
+        # POSIBLE MEJORA, HACER QUE SUBA LA IMG A CLOUDINARY EN OTRA FUNCIÓN
+
         # Subir gráfico a cloudinary
         generated_plot = None
 
@@ -223,7 +230,9 @@ def run_python_with_df(code: str, error_context: Optional[str] = None):
 
             cloudinary_result = (
                 upload_plot_to_cloudinary(
-                    plot_path
+                    plot_path,
+                    user_id,
+                    thread_id
                 )
             )
 
