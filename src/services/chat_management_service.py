@@ -1,7 +1,26 @@
 import uuid
 
+from config import SINGLE_USER_ID
 from database import get_connection
+from services.cloudinary_service import delete_chat_folder_from_cloudinary
 
+def is_chat_active(chat_id: str) -> bool:
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                SELECT 1
+                FROM chats
+                WHERE id = %s
+                AND is_deleted = FALSE
+            """, (chat_id,))
+
+            return cur.fetchone() is not None
+
+    finally:
+        conn.close()
 
 def create_chat(name: str):
     """
@@ -133,30 +152,43 @@ def update_chat_name(chat_id: str, name: str):
     finally:
         conn.close()
 
-
 def delete_chat(chat_id: str):
-    """
-    Borrado lógico del chat.
-    """
-
     conn = get_connection()
 
     try:
         with conn.cursor() as cur:
 
+            # 1. validar que el chat existe y no esté borrado
+            cur.execute("""
+                SELECT id
+                FROM chats
+                WHERE id = %s AND is_deleted = FALSE
+            """, (chat_id,))
+
+            chat = cur.fetchone()
+
+            if not chat:
+                return False
+
+            thread_id = chat[0]
+
+            # 2. borrar assets en Cloudinary
+            delete_chat_folder_from_cloudinary(
+                SINGLE_USER_ID,
+                thread_id
+            )
+
+            # 3. borrado lógico en DB
             cur.execute("""
                 UPDATE chats
-                SET
-                    is_deleted = TRUE,
+                SET is_deleted = TRUE,
                     updated_at = NOW()
-                WHERE
-                    id = %s
-                    AND is_deleted = FALSE
+                WHERE id = %s
             """, (chat_id,))
 
             conn.commit()
 
-            return cur.rowcount > 0
+            return True
 
     except Exception as e:
         conn.rollback()

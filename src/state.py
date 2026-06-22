@@ -28,6 +28,7 @@ class AgentState(TypedDict):
     conversation_history: List[dict]
     user_context: dict
     memory_summary: str
+    generated_plot: Optional[dict]
     learned_patterns: List[str]
     session_metadata: dict
     llm_response: Optional[str]

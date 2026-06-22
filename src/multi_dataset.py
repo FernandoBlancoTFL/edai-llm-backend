@@ -151,7 +151,8 @@ def get_semantic_descriptions_from_db(connection=None):
     try:
         with conn.cursor() as cursor:
             # Obtener todas las tablas que tienen columna semantic_description
-            stored_tables = list_stored_tables(conn)
+            all_tables = list_stored_tables(conn)
+            stored_tables = [t for t in all_tables if t not in ["chats"]]
             
             for table_name in stored_tables:
                 try:

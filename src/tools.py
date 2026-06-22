@@ -7,7 +7,9 @@ import time
 from typing import Any, List, Optional
 from langchain_core.tools import Tool
 from langchain_experimental.tools import PythonREPLTool
+from config import BASE_URL
 import dataset_manager
+from state import AgentState
 from utils import generate_unique_plot_filename
 
 python_repl = PythonREPLTool()
@@ -27,6 +29,8 @@ def auto_rename_plot_files(result: Any) -> Any:
         outputs_dir = "./src/outputs"
         if not os.path.exists(outputs_dir):
             return result
+        
+        latest_plot_path = None
         
         # Obtener archivos .png en outputs
         files = [f for f in os.listdir(outputs_dir) if f.endswith('.png')]
@@ -50,6 +54,7 @@ def auto_rename_plot_files(result: Any) -> Any:
         for filename, filepath in recent_files:
             # Verificar si ya tiene timestamp (patrón: _YYYYMMDD_HHMMSS)
             if re.search(r'_\d{8}_\d{6}\.png$', filename):
+                latest_plot_path = filepath
                 continue  # Ya tiene timestamp, no hacer nada
             
             # Extraer nombre base (sin .png)
@@ -61,13 +66,22 @@ def auto_rename_plot_files(result: Any) -> Any:
             
             # Renombrar el archivo
             os.rename(filepath, new_filepath)
+            latest_plot_path = new_filepath
             print(f"🔄 Archivo renombrado: {filename} → {unique_filename}")
             
             # Actualizar el resultado si menciona el archivo antiguo
             if result and isinstance(result, str):
                 result = result.replace(filename, unique_filename)
         
-        return result
+        print(
+            "AUTO_RENAME latest_plot_path:",
+            latest_plot_path
+        )
+        
+        return {
+            "result": result,
+            "plot_path": latest_plot_path
+        }
         
     except Exception as e:
         print(f"⚠️ Error al renombrar archivos: {e}")
@@ -100,13 +114,17 @@ output_path
     
     return code
 
-def run_python_with_df(code: str, error_context: Optional[str] = None):
+def run_python_with_df(code: str, state: AgentState, error_context: Optional[str] = None):
     """
     Ejecuta código Python con acceso al DataFrame `df` ya cargado.
     CAPTURA STDOUT para obtener resultados de print().
     """
     from io import StringIO
     import sys
+
+    meta = state["session_metadata"]
+    user_id = meta["user_id"]
+    thread_id = meta["thread_id"]
     
     # Verificar que hay un dataset cargado
     if dataset_manager.df is None or not dataset_manager.dataset_loaded:
@@ -193,7 +211,53 @@ def run_python_with_df(code: str, error_context: Optional[str] = None):
         sys.stdout = old_stdout
 
         # Renombrar archivos de gráficos generados
-        result = auto_rename_plot_files(result)
+        plot_info = auto_rename_plot_files(result)
+
+        result = plot_info["result"]
+
+        plot_path = plot_info["plot_path"]
+
+        # POSIBLE MEJORA, HACER QUE SUBA LA IMG A CLOUDINARY EN OTRA FUNCIÓN
+
+        # Subir gráfico a cloudinary
+        generated_plot = None
+
+        if plot_path:
+
+            from src.services.cloudinary_service import (
+                upload_plot_to_cloudinary
+            )
+
+            cloudinary_result = (
+                upload_plot_to_cloudinary(
+                    plot_path,
+                    user_id,
+                    thread_id
+                )
+            )
+
+            generated_plot = {
+                "filename": os.path.basename(plot_path),
+
+                "local_path": plot_path,
+
+                "local_url":
+                    f"{BASE_URL}/outputs/{os.path.basename(plot_path)}",
+
+                "cloudinary_url":
+                    (
+                        cloudinary_result["url"]
+                        if cloudinary_result
+                        else None
+                    ),
+
+                "cloudinary_public_id":
+                    (
+                        cloudinary_result["public_id"]
+                        if cloudinary_result
+                        else None
+                    )
+            }
 
         # Determinar el resultado final con validación segura
         final_result = None
@@ -215,11 +279,17 @@ def run_python_with_df(code: str, error_context: Optional[str] = None):
         else:
             final_result = "✅ Código ejecutado con éxito."
 
+        # Prints de prueba, ELIMINAR
+        # print("generated_plot:", generated_plot)
+        # print("plot_path:", plot_path)
+        # print("cloudinary_result:", cloudinary_result if plot_path else None)
+
         return {
             "success": True,
             "result": final_result,
             "error": None,
-            "error_type": None
+            "error_type": None,
+            "generated_plot": generated_plot
         }
         
     except Exception as e:

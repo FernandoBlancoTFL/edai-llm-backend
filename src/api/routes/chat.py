@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
+from database import get_connection
 from state import AgentState
 from utils import extract_plot_filename_from_result, extract_text_data, get_plot_metadata
 from config import BASE_URL
@@ -14,13 +15,15 @@ from config import SINGLE_USER_THREAD_ID, SINGLE_USER_ID
 from graph import create_graph_with_sql
 from checkpoints import get_postgres_saver
 from utils import clean_state_for_serialization
-
 from src.services.chat_service import (
     get_conversation_history
 )
 from src.api.schemas.chat import (
     ChatHistoryResponse,
     ChatHistoryItem
+)
+from src.services.chat_management_service import (
+    is_chat_active
 )
 
 router = APIRouter()
@@ -45,6 +48,13 @@ async def chat_endpoint(request: ChatRequest):
     - Retorna respuesta interpretativa con metadatos de ejecución
     """
     thread_id = request.chat_id
+
+    if not is_chat_active(thread_id):
+        raise HTTPException(
+            status_code=404,
+            detail="El chat no existe o fue eliminado"
+        )
+    
     try:
         # Obtener el grafo compilado
         graph = get_graph()
@@ -185,8 +195,10 @@ def find_recently_created_plot(time_window_seconds: int = 10) -> str:
 def prepare_response_metadata(state: AgentState) -> dict:
     """
     Prepara metadata completa de la respuesta para guardar en checkpoint.
-    Detecta tipo de respuesta y extrae datos relevantes.
+    Usa state["generated_plot"] para detectar gráficos en lugar de buscar
+    archivos recientes en outputs/.
     """
+
     metadata = {
         "timestamp": datetime.now().isoformat(),
         "query": state.get("query"),
@@ -194,48 +206,88 @@ def prepare_response_metadata(state: AgentState) -> dict:
         "strategy_used": state.get("data_strategy", "unknown"),
         "iterations": state.get("iteration_count", 0)
     }
-    
+
     # Detectar tipo de respuesta
     if state.get("success", False):
-        # Buscar si hay gráfico
-        plot_file = find_recently_created_plot()
-        
-        if plot_file:
-            plot_metadata = get_plot_metadata(plot_file)
-            
+
+        # ==========================
+        # GRÁFICO
+        # ==========================
+        plot_info = state.get("generated_plot")
+
+        if plot_info:
+
             metadata["type"] = "plot"
+
             metadata["data"] = {
-                "url": f"{BASE_URL}/outputs/{plot_file}",
-                "filename": plot_file,
-                "created_at": plot_metadata.get("created_at"),
-                "size_bytes": plot_metadata.get("size_bytes"),
-                "exists": plot_metadata.get("exists")
+                "url": (
+                    plot_info.get("cloudinary_url")
+                    or plot_info.get("local_url")
+                ),
+
+                "cloudinary_url":
+                    plot_info.get("cloudinary_url"),
+
+                "local_url":
+                    plot_info.get("local_url"),
+
+                "filename":
+                    plot_info.get("filename"),
+
+                "local_path":
+                    plot_info.get("local_path"),
+
+                "cloudinary_public_id":
+                    plot_info.get("cloudinary_public_id")
             }
-        
-        # Verificar si hay resultados SQL
+
+        # ==========================
+        # TABLA
+        # ==========================
         elif state.get("sql_results"):
+
             sql_results = state["sql_results"]
-            if isinstance(sql_results, dict) and sql_results.get("data"):
+
+            if (
+                isinstance(sql_results, dict)
+                and sql_results.get("data")
+            ):
                 metadata["type"] = "table"
+
                 metadata["data"] = {
                     "rows": sql_results.get("data", [])[:50],
                     "columns": sql_results.get("columns", []),
-                    "total_rows": len(sql_results.get("data", []))
+                    "total_rows": len(
+                        sql_results.get("data", [])
+                    )
                 }
-        
-        # Respuesta de texto
+
+        # ==========================
+        # TEXTO
+        # ==========================
         else:
+
             metadata["type"] = "text"
             metadata["data"] = None
-    
+
     else:
-        # Error
+
+        # ==========================
+        # ERROR
+        # ==========================
         metadata["type"] = "error"
+
         metadata["data"] = {
-            "error_message": state.get("final_error", "Error desconocido"),
-            "attempts": state.get("iteration_count", 0)
+            "error_message": state.get(
+                "final_error",
+                "Error desconocido"
+            ),
+            "attempts": state.get(
+                "iteration_count",
+                0
+            )
         }
-    
+
     return metadata
 
 def extract_response_data(state: dict, response_type: str):
@@ -359,23 +411,40 @@ async def get_chat_history(
     incluyendo solo aquellas que tienen respuesta completa del LLM.
     """
     try:
+
+        if not thread_id or not thread_id.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="thread_id es requerido"
+            )
+
+        # NUEVO: verificar que el chat siga activo
+        if not is_chat_active(thread_id):
+            raise HTTPException(
+                status_code=404,
+                detail="El chat no existe o fue eliminado"
+            )
+
         conversations = get_conversation_history(
             thread_id=thread_id,
             limit=limit,
             include_incomplete=include_incomplete
         )
-        
-        # Convertir a objetos ChatHistoryItem
+
         conversation_items = [
-            ChatHistoryItem(**conv) for conv in conversations
+            ChatHistoryItem(**conv)
+            for conv in conversations
         ]
-        
+
         return ChatHistoryResponse(
             thread_id=thread_id,
             total=len(conversation_items),
             conversations=conversation_items
         )
-    
+
+    except HTTPException:
+        raise
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
