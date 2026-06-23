@@ -181,6 +181,11 @@ POSTGRES_DB=edai_db
 # External APIs
 GOOGLE_API_KEY=your_gemini_key_here
 GROQ_API_KEY=your_groq_key_here
+
+# Cloudinary keys
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name_here
+CLOUDINARY_API_KEY=your_cloudinary_key_here
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret_here
 ```
 
 **Note**: Never commit the `.env` file to version control. Only `.env.example` should be tracked by git.
@@ -192,7 +197,14 @@ GROQ_API_KEY=your_groq_key_here
 
 ---
 
-#### 2.5 Run backend
+#### 2.5 Activate virtual environment
+
+```bash
+# From project root
+.\env\Scripts\activate
+```
+
+#### 2.6 Run backend
 
 ```bash
 # From project root
