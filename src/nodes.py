@@ -4,7 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from datetime import datetime
 from state import AgentState
-from config import API_KEY, GROQ_KEY, SINGLE_USER_THREAD_ID
+from config import API_KEY, GROQ_KEY, GROQ_KEY2, SINGLE_USER_THREAD_ID
 from database import data_connection, load_db_config
 from dataset_manager import df
 from tools import run_python_with_df, get_tools_summary, tools
@@ -18,7 +18,8 @@ from dataset_manager import ensure_dataset_loaded
 import dataset_manager
 
 # Inicializar LLM
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=API_KEY, temperature=0)
+# llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=API_KEY, temperature=0)
+llm = ChatGroq(model="openai/gpt-oss-120b", api_key=GROQ_KEY2, temperature=0)
 llm_documentHandler = ChatGroq(model="openai/gpt-oss-120b", api_key=GROQ_KEY, temperature=0)
 # llm = ChatOllama(model="gemma3", temperature=0)
 

@@ -11,6 +11,7 @@ SINGLE_USER_ID = "default_user"
 # Configuración de API y directorios
 API_KEY = os.getenv("GOOGLE_API_KEY")
 GROQ_KEY = os.getenv("GROQ_API_KEY")
+GROQ_KEY2 = os.getenv("GROQ_API_KEY2")
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
