@@ -105,11 +105,23 @@ def get_chats():
     finally:
         conn.close()
 
-
 def update_chat_name(chat_id: str, name: str):
     """
     Renombra un chat.
     """
+
+    # Eliminar espacios al inicio y al final
+    name = name.strip()
+
+    # Validar que el nombre no esté vacío
+    if not name:
+        raise ValueError("El nombre del chat no puede estar vacío.")
+
+    # Validar longitud máxima
+    if len(name) > 25:
+        raise ValueError(
+            "El nombre del chat no puede superar los 25 caracteres."
+        )
 
     conn = get_connection()
 

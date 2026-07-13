@@ -27,10 +27,17 @@ def update_chat_endpoint(
     request: UpdateChatRequest
 ):
 
-    chat = chat_management_service.update_chat_name(
-        chat_id,
-        request.name
-    )
+    try:
+        chat = chat_management_service.update_chat_name(
+            chat_id,
+            request.name
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
 
     if not chat:
         raise HTTPException(
