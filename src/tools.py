@@ -10,7 +10,7 @@ from langchain_experimental.tools import PythonREPLTool
 from config import BASE_URL
 import dataset_manager
 from state import AgentState
-from utils import generate_unique_plot_filename
+from utils import generate_unique_plot_filename, is_invalid_result
 
 python_repl = PythonREPLTool()
 
@@ -283,6 +283,18 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
         # print("generated_plot:", generated_plot)
         # print("plot_path:", plot_path)
         # print("cloudinary_result:", cloudinary_result if plot_path else None)
+
+        # Validar si el resultado obtenido es realmente válido
+        invalid, error_message = is_invalid_result(result, final_result)
+
+        if invalid:
+            return {
+                "success": False,
+                "result": None,
+                "error": error_message,
+                "error_type": "invalid_result",
+                "generated_plot": generated_plot
+            }
 
         return {
             "success": True,

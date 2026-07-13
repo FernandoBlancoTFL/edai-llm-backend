@@ -7,6 +7,9 @@ from dataset_manager import list_stored_tables
 from checkpoints import get_postgres_saver, load_conversation_history
 from datetime import datetime
 from config import SINGLE_USER_THREAD_ID
+import math
+import numpy as np
+import pandas as pd
 
 def clean_data_for_json(data):
     """Función simplificada solo para datasets"""
@@ -275,3 +278,88 @@ def verify_file_hash(file_content: bytes, expected_hash: str, algorithm: str = '
     """
     calculated_hash = calculate_file_hash(file_content, algorithm)
     return calculated_hash == expected_hash
+
+def is_invalid_result(result, final_result):
+    """
+    Determina si el resultado obtenido por el código Python debe
+    considerarse un fallo lógico (aunque no haya ocurrido una excepción).
+
+    Devuelve:
+        (is_invalid: bool, error_message: str)
+    """
+
+    # ----------------------------
+    # 1. Resultado None
+    # ----------------------------
+    if result is None:
+        text = str(final_result).strip().lower()
+
+        # Si no hubo ningún resultado útil
+        if text in [
+            "",
+            "none",
+            "nan",
+            "null",
+            "numpy.nan",
+            "np.nan"
+        ]:
+            return True, "La consulta no produjo un resultado válido."
+
+        return False, None
+
+    # ----------------------------
+    # 2. DataFrame vacío
+    # ----------------------------
+    if isinstance(result, pd.DataFrame):
+        if result.empty:
+            return True, "La consulta devolvió un DataFrame vacío."
+
+    # ----------------------------
+    # 3. Series vacía
+    # ----------------------------
+    if isinstance(result, pd.Series):
+        if result.empty:
+            return True, "La consulta devolvió una Serie vacía."
+
+    # ----------------------------
+    # 4. Escalares NaN
+    # ----------------------------
+    try:
+        if pd.isna(result):
+            return True, "La consulta devolvió NaN."
+    except Exception:
+        pass
+
+    # ----------------------------
+    # 5. Infinitos
+    # ----------------------------
+    try:
+        if isinstance(result, (float, np.floating)):
+            if math.isinf(result):
+                return True, "La consulta devolvió un valor infinito."
+    except Exception:
+        pass
+
+    # ----------------------------
+    # 6. Resultado textual
+    # ----------------------------
+    text = str(final_result).strip().lower()
+
+    invalid_texts = {
+        "",
+        "none",
+        "nan",
+        "null",
+        "numpy.nan",
+        "np.nan",
+        "empty dataframe",
+        "empty series"
+    }
+
+    if text in invalid_texts:
+        return True, f"Resultado inválido: {final_result}"
+
+    # ----------------------------
+    # Todo OK
+    # ----------------------------
+    return False, None
