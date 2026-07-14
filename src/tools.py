@@ -125,6 +125,13 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
     meta = state["session_metadata"]
     user_id = meta["user_id"]
     thread_id = meta["thread_id"]
+    dataset_context = state.get(
+        "dataset_context",
+        {}
+    )
+    dataset_id = dataset_context.get(
+        "file_id"
+    )
     
     # Verificar que hay un dataset cargado
     if dataset_manager.df is None or not dataset_manager.dataset_loaded:
@@ -228,6 +235,10 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
                 upload_plot_to_cloudinary
             )
 
+            from src.services.library_service import (
+                save_visualization
+            )
+
             cloudinary_result = (
                 upload_plot_to_cloudinary(
                     plot_path,
@@ -235,6 +246,38 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
                     thread_id
                 )
             )
+
+            dataset_name = dataset_context.get(
+                "original_filename"
+            )
+
+            if cloudinary_result:
+
+                try:
+
+                    save_visualization(
+
+                        user_id=user_id,
+
+                        chat_id=thread_id,
+
+                        dataset_id=dataset_id,
+
+                        dataset_name=dataset_name,
+
+                        filename=os.path.basename(plot_path),
+
+                        cloudinary_url=cloudinary_result["url"],
+
+                        cloudinary_public_id=cloudinary_result["public_id"]
+
+                    )
+
+                except Exception as e:
+
+                    print(
+                        f"⚠️ Error registrando visualización: {e}"
+                    )
 
             generated_plot = {
                 "filename": os.path.basename(plot_path),

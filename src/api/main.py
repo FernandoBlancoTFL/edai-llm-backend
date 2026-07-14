@@ -8,9 +8,10 @@ import os
 # Agregar src al path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from api.routes import chat, documents, chats
+from api.routes import chat, documents, chats, library_routes
 from database import (
     create_database_if_not_exists,
+    create_visualizations_table,
     test_target_database_connection,
     setup_data_connection,
     create_document_registry_table,
@@ -63,8 +64,12 @@ app.include_router(
     prefix="/api/chats",
     tags=["Chats"]
 )
-
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
+app.include_router(
+    library_routes.router,
+    prefix="/api/library",
+    tags=["Library"]
+)
 
 @app.on_event("startup")
 async def startup_event():
@@ -93,6 +98,9 @@ async def startup_event():
 
     print("💬 Creando tabla de chats...")
     create_chats_table()
+
+    print("🖼️ Creando tabla de visualizaciones...")
+    create_visualizations_table()
     
     # ELIMINADO: Ya no se inicializan datasets automáticamente
     print("📁 Sistema configurado para trabajar solo con documentos subidos vía API")
