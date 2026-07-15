@@ -10,7 +10,7 @@ from langchain_experimental.tools import PythonREPLTool
 from config import BASE_URL
 import dataset_manager
 from state import AgentState
-from utils import generate_unique_plot_filename
+from utils import generate_unique_plot_filename, is_invalid_result
 
 python_repl = PythonREPLTool()
 
@@ -125,6 +125,13 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
     meta = state["session_metadata"]
     user_id = meta["user_id"]
     thread_id = meta["thread_id"]
+    dataset_context = state.get(
+        "dataset_context",
+        {}
+    )
+    dataset_id = dataset_context.get(
+        "file_id"
+    )
     
     # Verificar que hay un dataset cargado
     if dataset_manager.df is None or not dataset_manager.dataset_loaded:
@@ -228,6 +235,10 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
                 upload_plot_to_cloudinary
             )
 
+            from src.services.library_service import (
+                save_visualization
+            )
+
             cloudinary_result = (
                 upload_plot_to_cloudinary(
                     plot_path,
@@ -235,6 +246,38 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
                     thread_id
                 )
             )
+
+            dataset_name = dataset_context.get(
+                "original_filename"
+            )
+
+            if cloudinary_result:
+
+                try:
+
+                    save_visualization(
+
+                        user_id=user_id,
+
+                        chat_id=thread_id,
+
+                        dataset_id=dataset_id,
+
+                        dataset_name=dataset_name,
+
+                        filename=os.path.basename(plot_path),
+
+                        cloudinary_url=cloudinary_result["url"],
+
+                        cloudinary_public_id=cloudinary_result["public_id"]
+
+                    )
+
+                except Exception as e:
+
+                    print(
+                        f"⚠️ Error registrando visualización: {e}"
+                    )
 
             generated_plot = {
                 "filename": os.path.basename(plot_path),
@@ -283,6 +326,18 @@ def run_python_with_df(code: str, state: AgentState, error_context: Optional[str
         # print("generated_plot:", generated_plot)
         # print("plot_path:", plot_path)
         # print("cloudinary_result:", cloudinary_result if plot_path else None)
+
+        # Validar si el resultado obtenido es realmente válido
+        invalid, error_message = is_invalid_result(result, final_result)
+
+        if invalid:
+            return {
+                "success": False,
+                "result": None,
+                "error": error_message,
+                "error_type": "invalid_result",
+                "generated_plot": generated_plot
+            }
 
         return {
             "success": True,

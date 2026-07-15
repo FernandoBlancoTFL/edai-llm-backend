@@ -28,6 +28,8 @@ def get_all_available_datasets(connection=None):
         if table_info:
             available_datasets[table_name] = {
                 "source": "database",
+                "file_id": table_info["file_id"],
+                "original_filename": table_info["original_filename"],
                 "table_name": table_name,
                 "friendly_name": get_friendly_dataset_name(table_name),
                 "columns": table_info["columns"][:10],  # Primeras 10 columnas

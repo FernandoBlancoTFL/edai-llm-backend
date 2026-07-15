@@ -365,6 +365,89 @@ def create_chats_table():
         if should_close and conn:
             conn.close()
 
+def create_visualizations_table():
+    """
+    Crea la tabla de visualizaciones.
+    """
 
+    global data_connection
 
+    conn = data_connection
+    should_close = False
 
+    if conn is None:
+
+        db_config = load_db_config()
+
+        connection_string = (
+            f"postgresql://{db_config['user']}:"
+            f"{db_config['password']}@"
+            f"{db_config['host']}:"
+            f"{db_config['port']}/"
+            f"{db_config['dbname']}"
+        )
+
+        conn = psycopg.connect(connection_string)
+        should_close = True
+
+    try:
+
+        with conn.cursor() as cursor:
+
+            cursor.execute("""
+                CREATE EXTENSION IF NOT EXISTS pgcrypto;
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS visualizations (
+
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+                    user_id VARCHAR(255) NOT NULL,
+
+                    chat_id VARCHAR(255) NOT NULL,
+
+                    dataset_id VARCHAR(8) NOT NULL,
+
+                    dataset_name VARCHAR(255) NOT NULL,
+
+                    filename VARCHAR(255) NOT NULL,
+
+                    cloudinary_url TEXT NOT NULL,
+
+                    cloudinary_public_id TEXT NOT NULL,
+
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+
+                )
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_visualizations_dataset
+                ON visualizations(dataset_id)
+            """)
+
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_visualizations_chat
+                ON visualizations(chat_id)
+            """)
+
+            conn.commit()
+
+            print("✅ Tabla visualizations creada/verificada")
+
+            return True
+
+    except Exception as e:
+
+        print(f"❌ Error creando tabla visualizations: {e}")
+
+        if conn:
+            conn.rollback()
+
+        return False
+
+    finally:
+
+        if should_close and conn:
+            conn.close()

@@ -116,11 +116,26 @@ def get_dataset_table_info_by_name(table_name, connection=None):
             cursor.execute(f'SELECT COUNT(*) FROM public."{table_name}"')
             row_count = cursor.fetchone()[0]
 
+            # Obtener información del documento registrado
+            cursor.execute("""
+                SELECT
+                    file_id,
+                    original_filename
+                FROM
+                    document_registry
+                WHERE
+                    table_name = %s
+            """, (table_name,))
+
+            document_info = cursor.fetchone()
+
             # Formatear información
             columns = [col[0] for col in columns_info]
             dtypes = {col[0]: col[1] for col in columns_info}
 
             return {
+                "file_id": document_info[0] if document_info else None,
+                "original_filename": document_info[1] if document_info else None,
                 "columns": columns,
                 "dtypes": dtypes,
                 "row_count": row_count,
@@ -173,7 +188,9 @@ def list_stored_tables(connection=None):
                 'checkpoint_migrations',
                 'checkpoint_writes',
                 'checkpoints',
-                'document_registry'
+                'document_registry',
+                'visualizations',
+                'chats'
             }
 
             dataset_tables = []
