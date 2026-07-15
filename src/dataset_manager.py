@@ -188,7 +188,9 @@ def list_stored_tables(connection=None):
                 'checkpoint_migrations',
                 'checkpoint_writes',
                 'checkpoints',
-                'document_registry'
+                'document_registry',
+                'visualizations',
+                'chats'
             }
 
             dataset_tables = []
